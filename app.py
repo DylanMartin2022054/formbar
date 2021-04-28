@@ -52,7 +52,7 @@ pygame.init()
 pixels = neopixel.NeoPixel(board.D21, MAXPIX, brightness=1.0, auto_write=False)
 
 app = Flask(__name__)
-
+bgmQueue = []
 # 0 - teacher
 # 1 - mod
 # 2 - student
@@ -167,6 +167,7 @@ def playBGM(bgm_filename, volume=1.0):
     pygame.mixer.music.load(bgm.bgm[bgm_filename])
     pygame.mixer.music.set_volume(volume)
     pygame.mixer.music.play(loops=-1)
+
 def stopBGM():
     pygame.mixer.music.stop()
 
@@ -910,6 +911,26 @@ def endpoint_sfx():
             resString += '</ul> You can play them by using \'/sfx?file=<b>&lt;sound file name&gt;</b>\''
             return render_template("general.html", content = resString, style = '<style>ul {columns: 2; -webkit-columns: 2; -moz-columns: 2;}</style>')
 
+@app.route('/bgmlist')
+def endpoint_bgmlist():
+    print("checking")
+
+    return str(bgmQueue)
+
+@app.route('/bgmplaying')
+def endpoint_bgmplaying():
+    print("checking")
+    answer = pygame.mixer.music.get_busy()
+    if answer == "1":
+        pygame.mixer.music.queue(bgmQueue)
+        print(bgmQueue)
+    elif answer == "0":
+        pygame.mixer.music.queue(bgmQueue)
+        pygame.mixer.music.play(bgmQueue[0])
+        print(bgmQueue)
+    return "answer was " + str(answer)
+
+
 @app.route('/bgm')
 def endpoint_bgm():
     if not request.remote_addr in studentList:
@@ -927,10 +948,14 @@ def endpoint_bgm():
         bgm_file = request.args.get('file')
         if bgm_file in bgm.bgm:
             bgm_volume = request.args.get('volume')
-            if bgm_volume and type(bgm_volume) is float:
-                playBGM(bgm_file, bgm_volume)
+            if request.args.get('add'):
+                bgmQueue.append(bgm_file)
+                pygame.mixer.music.queue(bgm.bgm[bgm_file])
             else:
-                playBGM(bgm_file)
+                if bgm_volume and type(bgm_volume) is float:
+                    playBGM(bgm_file, bgm_volume)
+                else:
+                    playBGM(bgm_file)
             return render_template("message.html", message = 'Playing: ' + bgm_file )
         else:
             resString = '<a href="/bgmstop">Stop Music</a>'
