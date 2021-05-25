@@ -166,7 +166,8 @@ def playSFX(sound):
 def playBGM(bgm_filename, volume=1.0):
     pygame.mixer.music.load(bgm.bgm[bgm_filename])
     pygame.mixer.music.set_volume(volume)
-    pygame.mixer.music.play(loops=-1)
+    pygame.mixer.music.play(loops=1)
+    pygame.mixer.music.set_endevent(0)
 
 def stopBGM():
     pygame.mixer.music.stop()
@@ -920,14 +921,15 @@ def endpoint_bgmlist():
 @app.route('/bgmplaying')
 def endpoint_bgmplaying():
     print("checking")
+    print(pygame.mixer.music.get_endevent())
     answer = pygame.mixer.music.get_busy()
     if answer == "1":
         pygame.mixer.music.queue(bgmQueue)
-        print(bgmQueue)
+        # print(bgmQueue)
     elif answer == "0":
         pygame.mixer.music.queue(bgmQueue)
         pygame.mixer.music.play(bgmQueue[0])
-        print(bgmQueue)
+        # print(bgmQueue)
     return "answer was " + str(answer)
 
 
@@ -947,21 +949,33 @@ def endpoint_bgm():
         bgm.updateFiles()
         bgm_file = request.args.get('file')
         if bgm_file in bgm.bgm:
-            bgm_volume = request.args.get('volume')
-            if request.args.get('add'):
+            if request.args.get('action') == 'add':
                 bgmQueue.append(bgm_file)
                 pygame.mixer.music.queue(bgm.bgm[bgm_file])
+                return render_template('message.html', message='Added ' + bgm_file + ' to queue.')
             else:
+                pygame.mixer.music.set_endevent(1)
+                bgm_volume = request.args.get('volume')
+                try:
+                    if request.args.get('volume'):
+                        bgm_volume = float(bgm_volume)
+                except:
+                    logging.warning("Could not convert volume to float. Setting to default.")
+                    bgm_volume = 0.5
                 if bgm_volume and type(bgm_volume) is float:
                     playBGM(bgm_file, bgm_volume)
                 else:
                     playBGM(bgm_file)
-            return render_template("message.html", message = 'Playing: ' + bgm_file )
+                return render_template("message.html", message = 'Playing: ' + bgm_file )
         else:
             resString = '<a href="/bgmstop">Stop Music</a>'
             resString += '<h2>List of available background music files:</h2><ul>'
             for key, value in bgm.bgm.items():
-                resString += '<li><a href="/bgm?file=' + key + '">' + key + '</a></li>'
+                resString += '<li><a href="/bgm?file=' + key
+                if pygame.mixer.music.get_busy():
+                    resString += '&action=add">' + key + '</a></li>'
+                else:
+                    resString += '">' + key + '</a></li>'
             resString += '</ul> You can play them by using \'<b>/bgm?file=&lt;sound file name&gt;&volume=&lt;0.0 - 1.0&gt;\'</b>'
             resString += '<br><br>You can stop them by using \'<b>/bgmstop</b>\''
             return render_template("general.html", content = resString, style = '<style>ul {columns: 2; -webkit-columns: 2; -moz-columns: 2;}</style>')
@@ -970,6 +984,7 @@ def endpoint_bgm():
 def endpoint_bgmstop():
     stopBGM()
     return render_template("message.html", message = 'Stopped music...' )
+    pygame.mixer.music.set_endevent(0)
 
 @app.route('/perc')
 def endpoint_perc():
@@ -1116,11 +1131,20 @@ def start_chat():
     server.set_fn_message_received(message_received)
     server.run_forever()
 
+def bgmHandler():
+    #loop check for stuff here
+    pass
+
 if __name__ == '__main__':
+    #The following line starts a thread for "start_chart()"
     chatApp = threading.Thread(target=start_chat, daemon=True)
     chatApp.start()
+    bgmApp = threading.Thread(target=start_chat, daemon=True)
+    bgmApp.start()
+
     # flaskApp = threading.Thread(target=start_flask)
     # flaskApp.start()
     # flaskApp.join()
     start_flask()
     chatApp.join()
+    bgmApp.join()
